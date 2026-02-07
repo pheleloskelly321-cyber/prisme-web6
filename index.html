@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prisme - Menu Digital</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .cat-btn.active { background-color: #F39C12; color: white; border-color: #F39C12; transform: scale(1.05); }
+        .cart-footer { transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .cart-footer.show { transform: translateY(0); }
+        .restau-logo-border { border: 4px solid white; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body class="bg-gray-50 pb-32">
+
+    <div id="restau-banner" class="relative h-56 w-full bg-cover bg-center transition-all duration-700 bg-gray-200">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+    </div>
+
+    <div class="px-4 -mt-20 relative z-10">
+        <div class="bg-white rounded-[2.5rem] p-6 shadow-2xl flex items-center space-x-5 border border-gray-100">
+            <img id="restau-logo" src="https://via.placeholder.com/150" class="w-24 h-24 rounded-[2rem] object-cover bg-white restau-logo-border">
+            <div class="flex-1">
+                <h1 id="restau-nom" class="text-2xl font-black text-gray-800 tracking-tight italic uppercase leading-none">Chargement...</h1>
+                <p id="restau-desc" class="text-[11px] text-gray-400 font-medium italic mt-2 line-clamp-2">Bienvenue chez nous</p>
+                <div class="flex items-center mt-3">
+                    <span class="text-[10px] bg-green-500 text-white px-3 py-1 rounded-full font-bold uppercase tracking-widest shadow-sm">Ouvert</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="sticky top-0 bg-gray-50/80 backdrop-blur-md z-40 py-6">
+        <div class="flex overflow-x-auto space-x-3 px-4 no-scrollbar" id="category-bar">
+            <button onclick="filterMenu('Tout')" class="cat-btn active flex-shrink-0 px-7 py-3 rounded-2xl border-2 border-white bg-white text-gray-700 font-bold shadow-md transition-all text-sm">Tout</button>
+            <button onclick="filterMenu('Entrées')" class="cat-btn flex-shrink-0 px-7 py-3 rounded-2xl border-2 border-white bg-white text-gray-700 font-bold shadow-md transition-all text-sm">Entrées</button>
+            <button onclick="filterMenu('Plats Principaux')" class="cat-btn flex-shrink-0 px-7 py-3 rounded-2xl border-2 border-white bg-white text-gray-700 font-bold shadow-md transition-all text-sm">Plats Principaux</button>
+            <button onclick="filterMenu('Grillades')" class="cat-btn flex-shrink-0 px-7 py-3 rounded-2xl border-2 border-white bg-white text-gray-700 font-bold shadow-md transition-all text-sm">Grillades</button>
+            <button onclick="filterMenu('Fruits de mer')" class="cat-btn flex-shrink-0 px-7 py-3 rounded-2xl border-2 border-white bg-white text-gray-700 font-bold shadow-md transition-all text-sm">Fruits de mer</button>
+            <button onclick="filterMenu('Boissons')" class="cat-btn flex-shrink-0 px-7 py-3 rounded-2xl border-2 border-white bg-white text-gray-700 font-bold shadow-md transition-all text-sm">Boissons</button>
+            <button onclick="filterMenu('Desserts')" class="cat-btn flex-shrink-0 px-7 py-3 rounded-2xl border-2 border-white bg-white text-gray-700 font-bold shadow-md transition-all text-sm">Desserts</button>
+        </div>
+    </div>
+
+    <div id="menu-container" class="px-4 space-y-12"></div>
+
+    <div id="cart-bar" class="cart-footer fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-7 rounded-t-[3.5rem] shadow-[0_-15px_50px_rgba(0,0,0,0.15)] z-50">
+        <div class="flex justify-between items-center max-w-lg mx-auto">
+            <div>
+                <p class="text-[10px] text-gray-400 font-black uppercase tracking-[0.2em] mb-1">Total Commande</p>
+                <p id="total-price" class="text-3xl font-black text-gray-900">0 HTG</p>
+            </div>
+            <button onclick="handleOrder()" class="bg-orange-500 hover:bg-orange-600 text-white px-12 py-5 rounded-[2rem] font-black shadow-xl shadow-orange-200 transition-all active:scale-90 uppercase tracking-wider text-sm">
+                Commander
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIza...",
+            authDomain: "le-menu-20dd1.firebaseapp.com",
+            databaseURL: "https://le-menu-20dd1-default-rtdb.firebaseio.com",
+            projectId: "le-menu-20dd1",
+            storageBucket: "le-menu-20dd1.appspot.com",
+            messagingSenderId: "...",
+            appId: "..."
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const resID = urlParams.get('id') || 'lakay_gourmet_id';
+        const tableFromURL = urlParams.get('table'); 
+        
+        let allItems = {};
+        let cart = {};
+
+        // 1. RALE ENFÒMASYON RESTORAN DEPANN SOU STRUCTURE NAN IMAJ OU A
+        // Dapre imaj 1000124044.png, enfòmasyon yo nan "users"
+        // Nou pral chèche itilizatè ki gen restaurant_id sa a
+        db.ref('users').orderByChild('restaurant_id').equalTo(resID).on('value', (snap) => {
+            const data = snap.val();
+            if(data) {
+                // Rale premye itilizatè ki gen restaurant_id sa a
+                const userId = Object.keys(data)[0];
+                const info = data[userId];
+                
+                document.getElementById('restau-nom').innerText = info.full_name || "Restaurant";
+                document.getElementById('restau-desc').innerText = info.address || "Haïti";
+                
+                // Imaj Logo (imageUrl nan Firebase ou)
+                if(info.imageUrl) {
+                    document.getElementById('restau-logo').src = info.imageUrl;
+                }
+
+                // Imaj Banyè (bannerUrl nan Firebase ou)
+                if(info.bannerUrl) {
+                    document.getElementById('restau-banner').style.backgroundImage = `url('${info.bannerUrl}')`;
+                }
+            }
+        });
+
+        // 2. Rale Menu (restaurants/ID/menu)
+        db.ref('restaurants/' + resID + '/menu').on('value', (snap) => {
+            allItems = snap.val() || {};
+            filterMenu('Tout');
+        });
+
+        function filterMenu(selectedCat) {
+            document.querySelectorAll('.cat-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.innerText === selectedCat);
+            });
+
+            const container = document.getElementById('menu-container');
+            container.innerHTML = "";
+            const categories = ["Entrées", "Plats Principaux", "Grillades", "Fruits de mer", "Boissons", "Desserts"];
+
+            categories.forEach(cat => {
+                if (selectedCat !== 'Tout' && selectedCat !== cat) return;
+                const itemsKeys = Object.keys(allItems).filter(key => allItems[key].categorie === cat);
+
+                if (itemsKeys.length > 0) {
+                    let section = `<div><h2 class="text-xl font-black text-gray-800 mb-6 flex items-center uppercase tracking-tighter italic"><span class="w-2 h-7 bg-orange-500 rounded-full mr-4 shadow-sm shadow-orange-300"></span>${cat}</h2><div class="space-y-5">`;
+                    itemsKeys.forEach(id => {
+                        const item = allItems[id];
+                        const qty = cart[id] || 0;
+                        
+                        // Itilize imageUrl depi nan Firebase pou plat yo
+                        const img = item.imageUrl || 'https://via.placeholder.com/150';
+
+                        section += `
+                            <div class="bg-white rounded-[2.5rem] p-3 shadow-md border border-gray-50 flex items-center space-x-4 transition-all hover:shadow-lg">
+                                <img src="${img}" class="w-28 h-28 rounded-[2rem] object-cover bg-gray-100" onerror="this.src='https://via.placeholder.com/150'">
+                                <div class="flex-1 pr-2">
+                                    <h3 class="font-black text-gray-800 text-sm leading-tight">${item.nom}</h3>
+                                    <p class="text-[10px] text-gray-400 mt-1 line-clamp-1 italic">${item.description || ''}</p>
+                                    <div class="mt-3 flex justify-between items-center">
+                                        <span class="text-orange-500 font-black text-base">${item.prix}</span>
+                                        <div class="flex items-center bg-gray-100 rounded-2xl p-1">
+                                            <button onclick="updateCart('${id}', -1)" class="w-9 h-9 flex items-center justify-center bg-white rounded-xl shadow-sm text-gray-400"><i class="fas fa-minus text-xs"></i></button>
+                                            <span id="qty-${id}" class="mx-3 font-black text-gray-800 text-sm">${qty}</span>
+                                            <button onclick="updateCart('${id}', 1)" class="w-9 h-9 flex items-center justify-center bg-orange-500 rounded-xl shadow-lg text-white active:scale-90"><i class="fas fa-plus text-xs"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>`;
+                    });
+                    container.innerHTML += section + `</div></div>`;
+                }
+            });
+        }
+
+        function updateCart(id, change) {
+            const currentQty = cart[id] || 0;
+            const newQty = Math.max(0, currentQty + change);
+            if (newQty === 0) delete cart[id]; else cart[id] = newQty;
+            const qtyLabel = document.getElementById(`qty-${id}`);
+            if(qtyLabel) qtyLabel.innerText = newQty;
+            calculateTotal();
+        }
+
+        function calculateTotal() {
+            let total = 0; let count = 0;
+            Object.keys(cart).forEach(id => {
+                const price = parseInt(allItems[id].prix.replace(/\D/g,'')) || 0;
+                total += price * cart[id];
+                count++;
+            });
+            document.getElementById('total-price').innerText = total.toLocaleString() + " HTG";
+            document.getElementById('cart-bar').classList.toggle('show', count > 0);
+        }
+
+        async function handleOrder() {
+            if (tableFromURL) {
+                sendToFirebase(tableFromURL);
+            } else {
+                const { value: table } = await Swal.fire({
+                    title: 'Numéro de Table',
+                    text: 'À quelle table êtes-vous installé ?',
+                    input: 'number',
+                    inputPlaceholder: 'Numéro de table',
+                    confirmButtonText: 'CONFIRMER',
+                    confirmButtonColor: '#F39C12',
+                    showCancelButton: true,
+                    customClass: { popup: 'rounded-[2rem]' }
+                });
+                if (table) sendToFirebase(table);
+            }
+        }
+
+        function sendToFirebase(tableNum) {
+            const orderId = "CMD_" + Date.now();
+            let itemsList = {};
+            let totalFinal = 0;
+
+            Object.keys(cart).forEach(id => {
+                const item = allItems[id];
+                const price = parseInt(item.prix.replace(/\D/g,'')) || 0;
+                itemsList[id] = { nom: item.nom, quantite: cart[id], prix: item.prix, subtotal: (price * cart[id]) + " HTG" };
+                totalFinal += (price * cart[id]);
+            });
+
+            const commandeData = {
+                id: orderId,
+                table: "Table " + tableNum,
+                articles: itemsList,
+                total: totalFinal.toLocaleString() + " HTG",
+                statut: "en_attente",
+                date: new Date().toLocaleString('fr-FR')
+            };
+
+            db.ref(`restaurants/${resID}/commandes/${orderId}`).set(commandeData)
+            .then(() => {
+                Swal.fire({ icon: 'success', title: 'Merci !', text: 'Votre commande (Table ' + tableNum + ') est reçue.', confirmButtonColor: '#28a745', customClass: { popup: 'rounded-[2rem]' } });
+                cart = {}; calculateTotal(); filterMenu(document.querySelector('.cat-btn.active').innerText);
+            });
+        }
+    </script>
+</body>
+</html>
